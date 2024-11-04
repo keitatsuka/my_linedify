@@ -25,23 +25,20 @@ from linebot.v3.webhooks import (
 from .dify import DifyAgent, DifyType
 from .session import ConversationSession, ConversationSessionStore
 
-
 logger = getLogger(__name__)
 logger.addHandler(NullHandler())
 
-
 class LineDifyIntegrator:
     def __init__(self, *,
-        line_channel_access_token: str,
-        line_channel_secret: str,
-        dify_api_key: str,
-        dify_base_url: str,
-        dify_user: str,
-        dify_type: DifyType = DifyType.Agent,
-        session_db_url: str = "sqlite:///sessions.db",
-        session_timeout: float = 3600.0,
-        verbose: bool = False
-    ) -> None:
+                line_channel_access_token: str,
+                line_channel_secret: str,
+                dify_api_key: str,
+                dify_base_url: str,
+                dify_user: str,
+                dify_type: DifyType = DifyType.Agent,
+                session_db_url: str = "sqlite:///sessions.db",
+                session_timeout: float = 3600.0,
+                verbose: bool = False) -> None:
 
         self.verbose = verbose
 
@@ -118,7 +115,13 @@ class LineDifyIntegrator:
 
     # Processors
     async def process_request(self, request_body: str, signature: str):
-        events = self.webhook_parser.parse(request_body, signature)
+        try:
+            events = self.webhook_parser.parse(request_body, signature)
+        except Exception as e:
+            # Adding detailed error logging for signature validation failures
+            logger.error(f"InvalidSignatureError: {e}. Signature: {signature}, Request Body: {request_body}")
+            raise e
+
         for event in events:
             reply_messages = await self.process_event(event)
 
