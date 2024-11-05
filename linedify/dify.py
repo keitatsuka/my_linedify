@@ -4,10 +4,8 @@ from logging import getLogger, NullHandler
 from typing import Dict, Tuple
 import aiohttp
 
-
 logger = getLogger(__name__)
 logger.addHandler(NullHandler())
-
 
 class DifyType(Enum):
     Agent = "Agent"
@@ -15,9 +13,13 @@ class DifyType(Enum):
     TextGenerator = "TextGenerator"
     Workflow = "Workflow"
 
-
 class DifyAgent:
-    def __init__(self, *, api_key: str, base_url: str, user: str, type: DifyType = DifyType.Agent, verbose: bool = False) -> None:
+    def __init__(self, *,
+                api_key: str,
+                base_url: str,
+                user: str,
+                type: DifyType = DifyType.Agent,
+                verbose: bool = False) -> None:
         self.verbose = verbose
         self.api_key = api_key
         self.base_url = base_url
@@ -34,7 +36,7 @@ class DifyAgent:
     async def make_payloads(self, text: str, image_bytes: bytes = None, inputs: dict = None) -> Dict:
         payloads = {
             "inputs": inputs or {},
-            "query": text,
+            "query": text or "",
             "response_mode": "streaming" if self.type == DifyType.Agent else "blocking",
             "user": self.user,
             "auto_generate_name": False,
@@ -49,16 +51,18 @@ class DifyAgent:
                     "upload_file_id": uploaded_image_id
                 }]
                 if not payloads["query"]:
-                    payloads["query"] = "." # Set dummy to prevent query empty error
-        
+                    payloads["query"] = "."  # queryが空の場合、ダミーのテキストを設定
+
         return payloads
 
-    async def upload_image(self, image_bytes: str) -> str:
+    async def upload_image(self, image_bytes: bytes) -> str:
         form_data = aiohttp.FormData()
-        form_data.add_field("file",
+        form_data.add_field(
+            "file",
             image_bytes,
             filename="image.png",
-            content_type="image/png")
+            content_type="image/png"
+        )
         form_data.add_field('user', self.user)
 
         async with aiohttp.ClientSession() as session:
@@ -78,30 +82,38 @@ class DifyAgent:
         response_text = ""
         response_data = {}
 
-        async for r in response.content:
-            decoded_r = r.decode("utf-8")
-            if not decoded_r.startswith("data:"):
+        async for line in response.content:
+            decoded_line = line.decode("utf-8").strip()
+            if not decoded_line.startswith("data:"):
                 continue
-            chunk = json.loads(decoded_r[5:])
+            json_str = decoded_line[5:].strip()
+            if json_str == "[DONE]":
+                break
+            chunk = json.loads(json_str)
 
             if self.verbose:
                 logger.debug(f"Chunk from Dify: {json.dumps(chunk, ensure_ascii=False)}")
 
-            event_type = chunk["event"]
+            event_type = chunk.get("event")
 
-            if event_type == "agent_message":
-                conversation_id = chunk["conversation_id"]
-                response_text += chunk["answer"]
+            if event_type == "message":
+                # メッセージのテキストを蓄積
+                response_text += chunk.get("answer", "")
+                # conversation_idを取得
+                conversation_id = chunk.get("conversation_id", conversation_id)
 
-            elif event_type == "agent_thought":
-                if tool := chunk.get("tool"):
-                    response_data["tool"] = tool
-                if tool_input := chunk.get("tool_input"):
-                    response_data["tool_input"] = tool_input
-    
             elif event_type == "message_end":
-                if retriever_resources := chunk["metadata"].get("retriever_resources"):
-                    response_data["retriever_resources"] = retriever_resources
+                # 必要に応じてmessage_endイベントを処理
+                if chunk.get("metadata"):
+                    response_data["metadata"] = chunk.get("metadata")
+
+            elif event_type == "error":
+                # エラーイベントを処理
+                error_message = chunk.get("message", "Unknown error")
+                raise Exception(f"Dify API Error: {error_message}")
+
+            # 他のイベントタイプも必要に応じて処理
+            # 例: "message_replace", "tts_message", "tts_message_end"など
 
         return conversation_id, response_text, response_data
 
@@ -111,9 +123,12 @@ class DifyAgent:
         if self.verbose:
             logger.info(f"Response from Dify: {json.dumps(response_json, ensure_ascii=False)}")
 
-        conversation_id = response_json["conversation_id"]
-        response_text = response_json["answer"]
-        return conversation_id, response_text, {}
+        conversation_id = response_json.get("conversation_id", "")
+        response_text = response_json.get("answer", "")
+        response_data = {}
+        if response_json.get("metadata"):
+            response_data["metadata"] = response_json.get("metadata")
+        return conversation_id, response_text, response_data
 
     async def process_textgenerator_response(self, response: aiohttp.ClientResponse) -> Tuple[str, str, Dict]:
         if self.verbose:
@@ -127,7 +142,7 @@ class DifyAgent:
 
         raise Exception("Workflow is not supported for now.")
 
-    async def invoke(self, conversation_id: str, text: str = None, image: bytes = None, inputs: dict = None, start_as_new: bool = False) -> Tuple[str, Dict]:
+    async def invoke(self, conversation_id: str, text: str = None, image: bytes = None, inputs: dict = None, start_as_new: bool = False) -> Tuple[str, str, Dict]:
         headers = {
             "Authorization": f"Bearer {self.api_key}"
         }
@@ -148,8 +163,9 @@ class DifyAgent:
             ) as response:
 
                 if response.status != 200:
-                    logger.error(f"Error response from Dify: {json.dumps(await response.json(), ensure_ascii=False)}")
-                response.raise_for_status()
+                    error_response = await response.json()
+                    logger.error(f"Error response from Dify: {json.dumps(error_response, ensure_ascii=False)}")
+                    response.raise_for_status()
 
                 response_processor = self.response_processors[self.type]
                 conversation_id, response_text, response_data = await response_processor(response)
