@@ -24,21 +24,22 @@ from linebot.v3.webhooks import (
 
 from .dify import DifyAgent, DifyType
 from .session import ConversationSession, ConversationSessionStore
+import os
 
 logger = getLogger(__name__)
 logger.addHandler(NullHandler())
 
 class LineDifyIntegrator:
     def __init__(self, *,
-                line_channel_access_token: str,
-                line_channel_secret: str,
-                dify_api_key: str,
-                dify_base_url: str,
-                dify_user: str,
-                dify_type: DifyType = DifyType.Agent,
-                session_db_url: str = "sqlite:///sessions.db",
-                session_timeout: float = 3600.0,
-                verbose: bool = False) -> None:
+                 line_channel_access_token: str = os.getenv("LINE_CHANNEL_ACCESS_TOKEN"),
+                 line_channel_secret: str = os.getenv("LINE_CHANNEL_SECRET"),
+                 dify_api_key: str = os.getenv("DIFY_API_KEY"),
+                 dify_base_url: str = os.getenv("DIFY_BASE_URL"),
+                 dify_user: str = os.getenv("DIFY_USER"),
+                 dify_type: DifyType = DifyType.Agent,
+                 session_db_url: str = "sqlite:///sessions.db",
+                 session_timeout: float = 3600.0,
+                 verbose: bool = False) -> None:
 
         self.verbose = verbose
 
@@ -118,7 +119,7 @@ class LineDifyIntegrator:
         try:
             events = self.webhook_parser.parse(request_body, signature)
         except Exception as e:
-            # Adding detailed error logging for signature validation failures
+            # Detailed error logging for signature validation failures
             logger.error(f"InvalidSignatureError: {e}. Signature: {signature}, Request Body: {request_body}")
             raise e
 
@@ -141,7 +142,6 @@ class LineDifyIntegrator:
         try:
             if validation_messages := await self._validate_event(event):
                 return validation_messages
-            
             else:
                 event_handler = self._event_handlers.get(event.type)
                 if event_handler:
@@ -213,13 +213,16 @@ class LineDifyIntegrator:
         return f"You received a location info from user in messenger app:\n    - address: {message.address}\n    - latitude: {message.latitude}\n    - longitude: {message.longitude}", None
 
     # Defaults
-    async def validate_event_default(self, Event) -> Union[None, List[Message]]:
+    async def validate_event_default(self, event) -> Union[None, List[Message]]:
         return None
 
     async def make_inputs_default(self, session: ConversationSession) -> Dict:
         return {}
 
     async def to_reply_message_default(self, text: str, data: dict, session: ConversationSession) -> List[Message]:
+        # Ensure non-empty text for reply
+        if not text:
+            text = "エラーが発生しました"
         return [TextMessage(text=text)]
 
     async def to_error_message_default(self, event: Event, ex: Exception, session: ConversationSession = None) -> List[Message]:
