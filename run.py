@@ -11,9 +11,9 @@ from linebot.v3.messaging import (
 )
 from linebot.v3.webhooks import (
     MessageEvent,
-    TextMessageContent
+    TextMessageContent,
+    Event  # インポートパスを修正
 )
-from linebot.v3.webhooks.models.events import Event
 from linedify.session import ConversationSession
 import os
 
