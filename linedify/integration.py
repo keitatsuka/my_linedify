@@ -192,3 +192,5 @@ class LineDifyIntegrator:
 
             if self.verbose:
                 logger.info(f"Response to LINE: {', '.join([json.dumps(m.as_json_dict(), ensure_ascii=False) for m in response_messages])}")
+        except Exception as e:
+            logger.error(f"Error in processing LINE response: {e}")
