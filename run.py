@@ -31,15 +31,15 @@ DIFY_AGENTS = {
         "base_url": os.getenv('DIFY_BASE_URL_DEFAULT'),
         "user": os.getenv('DIFY_USER_DEFAULT'),
     },
-    "タイプ1": {
-        "api_key": os.getenv('DIFY_API_KEY_TYPE1'),
-        "base_url": os.getenv('DIFY_BASE_URL_TYPE1'),
-        "user": os.getenv('DIFY_USER_TYPE1'),
+    "INTP": {
+        "api_key": os.getenv('DIFY_API_KEY_INTP'),
+        "base_url": os.getenv('DIFY_BASE_URL_INTP'),
+        "user": os.getenv('DIFY_USER_INTP'),
     },
-    "タイプ2": {
-        "api_key": os.getenv('DIFY_API_KEY_TYPE2'),
-        "base_url": os.getenv('DIFY_BASE_URL_TYPE2'),
-        "user": os.getenv('DIFY_USER_TYPE2'),
+    "ESFP": {
+        "api_key": os.getenv('DIFY_API_KEY_ESFP'),
+        "base_url": os.getenv('DIFY_BASE_URL_ESFP'),
+        "user": os.getenv('DIFY_USER_ESFP'),
     },
     # 他のタイプも同様に設定
 }
