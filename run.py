@@ -49,6 +49,7 @@ AVAILABLE_TYPES.remove("default")  # デフォルトを除外
 line_dify = LineDify(
     line_channel_access_token=LINE_CHANNEL_ACCESS_TOKEN,
     line_channel_secret=LINE_CHANNEL_SECRET,
+    dify_agents=DIFY_AGENTS,  # ここを追加
     dify_type=DifyType.Chatbot,
     verbose=True
 )
