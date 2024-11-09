@@ -109,6 +109,11 @@ class LineDifyIntegrator:
         self._to_error_message = func
         return func
 
+    # デフォルトの validate_event メソッドを追加
+    async def validate_event_default(self, event: Event):
+        # 何も返さない場合、次の処理に進みます
+        return None
+
     # リクエスト処理
     async def process_request(self, request_body: str, signature: str):
         events = self.webhook_parser.parse(request_body, signature)
@@ -192,5 +197,50 @@ class LineDifyIntegrator:
 
             if self.verbose:
                 logger.info(f"Response to LINE: {', '.join([json.dumps(m.as_json_dict(), ensure_ascii=False) for m in response_messages])}")
+
+            return response_messages
+
         except Exception as e:
-            logger.error(f"Error in processing LINE response: {e}")
+            logger.error(f"Error in processing message event: {e}\n{format_exc()}")
+            return await self._to_error_message(event, e, conversation_session)
+
+    # デフォルトのメッセージパーサー
+    async def parse_text_message(self, message: TextMessageContent):
+        return message.text, None
+
+    async def parse_image_message(self, message: ImageMessageContent):
+        # イメージデータを取得する処理を実装
+        # この部分は省略されていますが、必要に応じて実装してください
+        image_bytes = None  # イメージデータをバイト列として取得
+        return None, image_bytes
+
+    async def parse_sticker_message(self, message: StickerMessageContent):
+        # スタンプメッセージの処理を実装
+        return None, None
+
+    async def parse_location_message(self, message: LocationMessageContent):
+        # 位置情報メッセージの処理を実装
+        return None, None
+
+    # デフォルトのイベントハンドラ
+    async def event_handler_default(self, event: Event):
+        # 未処理のイベントタイプに対するデフォルトの処理
+        logger.warning(f"Unhandled event type: {event.type}")
+        return None
+
+    # デフォルトの make_inputs 関数
+    async def make_inputs_default(self, session: ConversationSession):
+        # 必要に応じて入力をカスタマイズ
+        return {}
+
+    # デフォルトの to_reply_message 関数
+    async def to_reply_message_default(self, text: str, data: dict, session: ConversationSession):
+        return [TextMessage(text=text)]
+
+    # デフォルトの to_error_message 関数
+    async def to_error_message_default(self, event: Event, ex: Exception, session: ConversationSession = None):
+        text = "申し訳ありませんが、エラーが発生しました。しばらくしてからもう一度お試しください。"
+        return [TextMessage(text=text)]
+
+    async def shutdown(self):
+        await self.conversation_session_store.close()
