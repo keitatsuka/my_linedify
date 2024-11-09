@@ -1,5 +1,3 @@
-# run.py
-
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, BackgroundTasks
 from linedify import LineDify
@@ -12,7 +10,6 @@ from linebot.v3.messaging import (
     MessageAction
 )
 from linebot.v3.webhooks import (
-    PostbackEvent,
     MessageEvent,
     TextMessageContent
 )
@@ -82,8 +79,8 @@ async def handle_message_event(event: MessageEvent):
     if isinstance(message, TextMessageContent):
         text = message.text.strip()
 
-        # ユーザーが「16タイプAIを変えたい！」と送信した場合
-        if text == "16タイプAI変更":
+        # ユーザーが「AIタイプ変更リクエスト」を送信した場合
+        if text == "AIタイプ変更リクエスト":
             conversation_session.state = "selecting_type"
 
             # 利用可能なタイプをQuickReplyで提示
@@ -113,6 +110,7 @@ async def handle_message_event(event: MessageEvent):
             if selected_type in AVAILABLE_TYPES:
                 conversation_session.agent_key = selected_type
                 conversation_session.state = None  # 状態をリセット
+                conversation_session.conversation_id = None  # 会話IDをリセット
                 reply_text = f"タイプ '{selected_type}' に切り替えました。"
             else:
                 reply_text = "指定されたタイプは存在しません。もう一度選択してください。"
@@ -130,7 +128,40 @@ async def handle_message_event(event: MessageEvent):
             return []
 
     # 通常のメッセージ処理を行う
-    return await line_dify.handle_message_event(event)
+    # ユーザーのエージェントキーに基づいてDifyエージェントを取得
+    agent_key = conversation_session.agent_key or "default"
+    agent_info = DIFY_AGENTS.get(agent_key, DIFY_AGENTS["default"])
+
+    # DifyAgentを生成
+    dify_agent = DifyAgent(
+        api_key=agent_info["api_key"],
+        base_url=agent_info["base_url"],
+        user=agent_info["user"],
+        type=DifyType.Chatbot,
+        verbose=True
+    )
+
+    # DifyAgentを使用して会話を進行
+    conversation_id, response_text, data = await dify_agent.invoke(
+        conversation_session.conversation_id,
+        text=message.text,
+        inputs={}
+    )
+
+    # セッション情報を更新
+    conversation_session.conversation_id = conversation_id
+    await line_dify.conversation_session_store.set_session(conversation_session)
+
+    # 応答メッセージを生成
+    reply_message = TextMessage(text=response_text)
+    await line_dify.line_api.reply_message(
+        ReplyMessageRequest(
+            replyToken=event.reply_token,
+            messages=[reply_message]
+        )
+    )
+
+    return []
 
 # make_inputs 関数を追加（必要に応じて）
 @line_dify.make_inputs
