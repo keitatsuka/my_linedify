@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, BackgroundTasks
 from linedify import LineDify
-from linedify.dify import DifyType
+from linedify.dify import DifyAgent, DifyType  # DifyAgentをインポート
 from linebot.v3.messaging import (
     TextMessage,
     ReplyMessageRequest,
@@ -12,10 +12,11 @@ from linebot.v3.messaging import (
 from linebot.v3.webhooks import (
     MessageEvent,
     TextMessageContent,
-    Event  # インポートパスを修正
+    Event
 )
 from linedify.session import ConversationSession
 import os
+
 
 # 環境変数から値を取得
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv('LINE_CHANNEL_ACCESS_TOKEN')
