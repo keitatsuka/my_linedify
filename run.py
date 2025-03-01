@@ -22,17 +22,19 @@ import os
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv('LINE_CHANNEL_ACCESS_TOKEN')
 LINE_CHANNEL_SECRET = os.getenv('LINE_CHANNEL_SECRET')
 
-# Dify エージェント情報を辞書にまとめる
+# Dify エージェント情報を辞書にまとめる（sender画像も含む）
 DIFY_AGENTS = {
     "Emily": {
         "api_key": os.getenv('DIFY_API_KEY_EMILY'),
         "base_url": os.getenv('DIFY_BASE_URL_EMILY'),
         "user": os.getenv('DIFY_USER_EMILY'),
+        "iconUrl": os.getenv('DIFY_ICON_URL_EMILY'),
     },
     "フィナ": {
         "api_key": os.getenv('DIFY_API_KEY_FINA'),
         "base_url": os.getenv('DIFY_BASE_URL_FINA'),
         "user": os.getenv('DIFY_USER_FINA'),
+        "iconUrl": os.getenv('DIFY_ICON_URL_FINA'),
     },
     # 他のタイプも同様に設定
 }
@@ -80,11 +82,19 @@ async def handle_message_event(event: MessageEvent):
         if not conversation_session.agent_key:
             conversation_session.agent_key = "Emily"
 
+        # デバッグログ（必要に応じて）
+        print("DEBUG: 受信メッセージ:", text)
+        print("DEBUG: 現在のエージェント:", conversation_session.agent_key)
+
         # 条件1: メッセージに「フィナ」が含まれており、「バイバイ」が含まれていない場合、かつ現在のエージェントが "Emily" の場合
         if "フィナ" in text and "バイバイ" not in text:
             if conversation_session.agent_key == "Emily":
                 conversation_session.agent_key = "フィナ"
-                reply_msg = TextMessage(text="エージェントをフィナに切り替えました。")
+                conversation_session.conversation_id = None  # 新規会話開始
+                reply_msg = TextMessage(
+                    text="エージェントをフィナに切り替えました。",
+                    sender={"name": "フィナ", "iconUrl": DIFY_AGENTS["フィナ"]["iconUrl"]}
+                )
                 await line_dify.line_api.reply_message(
                     ReplyMessageRequest(
                         replyToken=event.reply_token,
@@ -92,13 +102,18 @@ async def handle_message_event(event: MessageEvent):
                     )
                 )
                 await line_dify.conversation_session_store.set_session(conversation_session)
+                print("DEBUG: エージェント切替実行：Emily -> フィナ")
                 return []
 
         # 条件2: メッセージに「フィナ」と「バイバイ」の両方が含まれている場合、かつ現在のエージェントが "フィナ" の場合
         elif "フィナ" in text and "バイバイ" in text:
             if conversation_session.agent_key == "フィナ":
                 conversation_session.agent_key = "Emily"
-                reply_msg = TextMessage(text="エージェントをEmilyに切り替えました。")
+                conversation_session.conversation_id = None  # 新規会話開始
+                reply_msg = TextMessage(
+                    text="エージェントをEmilyに切り替えました。",
+                    sender={"name": "Emily", "iconUrl": DIFY_AGENTS["Emily"]["iconUrl"]}
+                )
                 await line_dify.line_api.reply_message(
                     ReplyMessageRequest(
                         replyToken=event.reply_token,
@@ -106,55 +121,8 @@ async def handle_message_event(event: MessageEvent):
                     )
                 )
                 await line_dify.conversation_session_store.set_session(conversation_session)
+                print("DEBUG: エージェント切替実行：フィナ -> Emily")
                 return []
-
-        # ユーザーが「AIタイプ変更リクエスト」を送信した場合
-        if text == "AIタイプ変更リクエスト":
-            conversation_session.state = "selecting_type"
-
-            # 利用可能なタイプをQuickReplyで提示
-            quick_reply_items = [
-                QuickReplyItem(
-                    action=MessageAction(label=type_name, text=type_name)
-                ) for type_name in AVAILABLE_TYPES[:13]  # QuickReplyは最大13個
-            ]
-            reply_message = TextMessage(
-                text="どのタイプにしますか？",
-                quick_reply=QuickReply(items=quick_reply_items)
-            )
-            await line_dify.line_api.reply_message(
-                ReplyMessageRequest(
-                    replyToken=event.reply_token,
-                    messages=[reply_message]
-                )
-            )
-
-            # セッションを更新
-            await line_dify.conversation_session_store.set_session(conversation_session)
-            return []
-
-        # ユーザーがタイプ選択中の場合
-        elif conversation_session.state == "selecting_type":
-            selected_type = text
-            if selected_type in AVAILABLE_TYPES:
-                conversation_session.agent_key = selected_type
-                conversation_session.state = None  # 状態をリセット
-                conversation_session.conversation_id = None  # 会話IDをリセット
-                reply_text = f"タイプ '{selected_type}' に切り替えました。"
-            else:
-                reply_text = "指定されたタイプは存在しません。もう一度選択してください。"
-
-            reply_message = TextMessage(text=reply_text)
-            await line_dify.line_api.reply_message(
-                ReplyMessageRequest(
-                    replyToken=event.reply_token,
-                    messages=[reply_message]
-                )
-            )
-
-            # セッションを更新
-            await line_dify.conversation_session_store.set_session(conversation_session)
-            return []
 
     # 通常のメッセージ処理を行う
     # ユーザーのエージェントキーに基づいてDifyエージェントを取得
@@ -181,8 +149,11 @@ async def handle_message_event(event: MessageEvent):
     conversation_session.conversation_id = conversation_id
     await line_dify.conversation_session_store.set_session(conversation_session)
 
-    # 応答メッセージを生成
-    reply_message = TextMessage(text=response_text)
+    # 応答メッセージを生成（sender情報を含める）
+    reply_message = TextMessage(
+        text=response_text,
+        sender={"name": agent_key, "iconUrl": agent_info.get("iconUrl")}
+    )
     await line_dify.line_api.reply_message(
         ReplyMessageRequest(
             replyToken=event.reply_token,
@@ -201,7 +172,12 @@ async def make_inputs(session: ConversationSession):
 # to_reply_message 関数を追加（必要に応じて）
 @line_dify.to_reply_message
 async def to_reply_message(text: str, data: dict, session: ConversationSession):
-    return [TextMessage(text=text)]
+    agent_key = session.agent_key or "Emily"
+    agent_info = DIFY_AGENTS.get(agent_key, DIFY_AGENTS["Emily"])
+    return [TextMessage(
+        text=text,
+        sender={"name": agent_key, "iconUrl": agent_info.get("iconUrl")}
+    )]
 
 # エラーメッセージのカスタマイズ
 @line_dify.to_error_message
