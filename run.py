@@ -24,20 +24,15 @@ LINE_CHANNEL_SECRET = os.getenv('LINE_CHANNEL_SECRET')
 
 # Dify エージェント情報を辞書にまとめる
 DIFY_AGENTS = {
-    "default": {
-        "api_key": os.getenv('DIFY_API_KEY_DEFAULT'),
-        "base_url": os.getenv('DIFY_BASE_URL_DEFAULT'),
-        "user": os.getenv('DIFY_USER_DEFAULT'),
+    "Emily": {
+        "api_key": os.getenv('DIFY_API_KEY_EMILY'),
+        "base_url": os.getenv('DIFY_BASE_URL_EMILY'),
+        "user": os.getenv('DIFY_USER_EMILY'),
     },
-    "INTP": {
-        "api_key": os.getenv('DIFY_API_KEY_INTP'),
-        "base_url": os.getenv('DIFY_BASE_URL_INTP'),
-        "user": os.getenv('DIFY_USER_INTP'),
-    },
-    "ESFP": {
-        "api_key": os.getenv('DIFY_API_KEY_ESFP'),
-        "base_url": os.getenv('DIFY_BASE_URL_ESFP'),
-        "user": os.getenv('DIFY_USER_ESFP'),
+    "フィナ": {
+        "api_key": os.getenv('DIFY_API_KEY_FINA'),
+        "base_url": os.getenv('DIFY_BASE_URL_FINA'),
+        "user": os.getenv('DIFY_USER_FINA'),
     },
     # 他のタイプも同様に設定
 }
