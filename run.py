@@ -74,19 +74,19 @@ async def handle_message_event(event: MessageEvent):
     # ユーザーのセッションを取得
     conversation_session = await line_dify.conversation_session_store.get_session(user_id)
 
+    # セッション内の agent_key が None, 空文字, または "default" の場合は "Emily" に設定
+    if conversation_session.agent_key in (None, "", "default"):
+        conversation_session.agent_key = "Emily"
+        await line_dify.conversation_session_store.set_session(conversation_session)
+
     if isinstance(message, TextMessageContent):
         text = message.text.strip()
 
-        # 自動エージェント切替の条件チェック
-        # 初回のセッションの場合、デフォルトを "Emily" に設定
-        if not conversation_session.agent_key:
-            conversation_session.agent_key = "Emily"
-
-        # デバッグログ（必要に応じて）
+        # デバッグログ
         print("DEBUG: 受信メッセージ:", text)
         print("DEBUG: 現在のエージェント:", conversation_session.agent_key)
 
-        # 条件1: メッセージに「フィナ」が含まれており、「バイバイ」が含まれていない場合、かつ現在のエージェントが "Emily" の場合
+        # 条件1: 「フィナ」が含まれており、「バイバイ」が含まれていない場合、かつ現在のエージェントが "Emily" の場合
         if "フィナ" in text and "バイバイ" not in text:
             if conversation_session.agent_key == "Emily":
                 conversation_session.agent_key = "フィナ"
@@ -105,7 +105,7 @@ async def handle_message_event(event: MessageEvent):
                 print("DEBUG: エージェント切替実行：Emily -> フィナ")
                 return []
 
-        # 条件2: メッセージに「フィナ」と「バイバイ」の両方が含まれている場合、かつ現在のエージェントが "フィナ" の場合
+        # 条件2: 「フィナ」と「バイバイ」の両方が含まれている場合、かつ現在のエージェントが "フィナ" の場合
         elif "フィナ" in text and "バイバイ" in text:
             if conversation_session.agent_key == "フィナ":
                 conversation_session.agent_key = "Emily"
@@ -166,7 +166,6 @@ async def handle_message_event(event: MessageEvent):
 # make_inputs 関数を追加（必要に応じて）
 @line_dify.make_inputs
 async def make_inputs(session: ConversationSession):
-    # 必要に応じて入力をカスタマイズ
     return {}
 
 # to_reply_message 関数を追加（必要に応じて）
@@ -190,11 +189,9 @@ async def to_error_message(event: Event, ex: Exception, session: ConversationSes
 async def handle_request(request: Request, background_tasks: BackgroundTasks):
     body = (await request.body()).decode("utf-8")
     signature = request.headers.get("X-Line-Signature", "")
-
     background_tasks.add_task(
         line_dify.process_request,
         request_body=body,
         signature=signature
     )
-
     return "ok"
