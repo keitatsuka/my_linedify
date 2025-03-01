@@ -39,7 +39,6 @@ DIFY_AGENTS = {
 
 # 利用可能なタイプのリスト
 AVAILABLE_TYPES = list(DIFY_AGENTS.keys())
-AVAILABLE_TYPES.remove("default")  # デフォルトを除外
 
 # LineDify のインスタンスを作成
 line_dify = LineDify(
