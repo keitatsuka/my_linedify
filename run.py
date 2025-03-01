@@ -75,6 +75,39 @@ async def handle_message_event(event: MessageEvent):
     if isinstance(message, TextMessageContent):
         text = message.text.strip()
 
+        # 自動エージェント切替の条件チェック
+        # 初回のセッションの場合、デフォルトを "Emily" に設定
+        if not conversation_session.agent_key:
+            conversation_session.agent_key = "Emily"
+
+        # 条件1: メッセージに「フィナ」が含まれており、「バイバイ」が含まれていない場合、かつ現在のエージェントが "Emily" の場合
+        if "フィナ" in text and "バイバイ" not in text:
+            if conversation_session.agent_key == "Emily":
+                conversation_session.agent_key = "フィナ"
+                reply_msg = TextMessage(text="エージェントをフィナに切り替えました。")
+                await line_dify.line_api.reply_message(
+                    ReplyMessageRequest(
+                        replyToken=event.reply_token,
+                        messages=[reply_msg]
+                    )
+                )
+                await line_dify.conversation_session_store.set_session(conversation_session)
+                return []
+
+        # 条件2: メッセージに「フィナ」と「バイバイ」の両方が含まれている場合、かつ現在のエージェントが "フィナ" の場合
+        elif "フィナ" in text and "バイバイ" in text:
+            if conversation_session.agent_key == "フィナ":
+                conversation_session.agent_key = "Emily"
+                reply_msg = TextMessage(text="エージェントをEmilyに切り替えました。")
+                await line_dify.line_api.reply_message(
+                    ReplyMessageRequest(
+                        replyToken=event.reply_token,
+                        messages=[reply_msg]
+                    )
+                )
+                await line_dify.conversation_session_store.set_session(conversation_session)
+                return []
+
         # ユーザーが「AIタイプ変更リクエスト」を送信した場合
         if text == "AIタイプ変更リクエスト":
             conversation_session.state = "selecting_type"
@@ -125,8 +158,8 @@ async def handle_message_event(event: MessageEvent):
 
     # 通常のメッセージ処理を行う
     # ユーザーのエージェントキーに基づいてDifyエージェントを取得
-    agent_key = conversation_session.agent_key or "default"
-    agent_info = DIFY_AGENTS.get(agent_key, DIFY_AGENTS["default"])
+    agent_key = conversation_session.agent_key or "Emily"
+    agent_info = DIFY_AGENTS.get(agent_key, DIFY_AGENTS["Emily"])
 
     # DifyAgentを生成
     dify_agent = DifyAgent(
